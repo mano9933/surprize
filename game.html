@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enhanced Mario-Like Game</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      background-color: #87CEEB;
+    }
+    canvas {
+      display: block;
+      margin: auto;
+      background: #87CEEB;
+      border: 2px solid black;
+    }
+    #game-over {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      font-size: 2em;
+      color: white;
+      display: none;
+    }
+    #chocolate-icon {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      font-size: 24px;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="400"></canvas>
+  <div id="game-over">Game Over! <br> Tap to restart.</div>
+  <div id="chocolate-icon">🍫 0</div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const gameState = {
+      running: true,
+      speed: 3,
+      chocolateCount: 0,
+    };
+
+    const player = {
+      x: 50,
+      y: 300,
+      width: 80,
+      height: 80,
+      velocityY: 0,
+      isJumping: false,
+      frame: 0,
+      images: [new Image(), new Image(), new Image()],
+    };
+
+    player.images[0].src = 'run1.png';
+    player.images[1].src = 'run2.png';
+    player.images[2].src = 'run3.png';
+
+    const gravity = 0.5;
+    const ground = { y: 350, height: 50 };
+
+    const obstacles = [];
+    const platforms = [
+      createPlatform(400, 250, 100),
+      createPlatform(700, 150, 120),
+      createPlatform(1000, 300, 80),
+    ];
+
+    const obstacleWidth = 40;
+    const obstacleHeight = 40;
+
+    // Load the obstacle image
+    const obstacleImage = new Image();
+    obstacleImage.src = 'obstacle.png'; // Make sure the image is in the same directory or specify the correct path
+
+    // Load the cloud image
+    const cloudImage = new Image();
+    cloudImage.src = 'clouds.png'; // Ensure this image is available
+
+    // Clouds array
+    const clouds = [];
+
+    function createPlatform(x, y, width) {
+      return {
+        x,
+        y,
+        width,
+        height: 20,
+        chocolates: generateChocolates(3),
+        chocolatesCollected: [false, false, false],
+      };
+    }
+
+    function generateChocolates(count) {
+      return Array.from({ length: count }, (_, i) => ({
+        xOffset: (i - count / 2) * 20,
+        collected: false,
+      }));
+    }
+
+    function createObstacle() {
+      const minX = Math.max(
+        ...platforms.map(platform => platform.x + platform.width + 100)
+      );
+      obstacles.push({
+        x: Math.max(canvas.width, minX),
+        y: ground.y - obstacleHeight,
+      });
+    }
+
+    function createCloud() {
+      const cloudWidth = Math.random() * 100 + 50;
+      const cloudHeight = Math.random() * 30 + 20;
+      const cloudX = canvas.width;
+      const cloudY = Math.random() * 100 + 50;
+      clouds.push({ x: cloudX, y: cloudY, width: cloudWidth, height: cloudHeight });
+    }
+
+    function drawSky() {
+      // Sky gradient
+      const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      skyGradient.addColorStop(0, "#87CEEB"); // Light blue for sky
+      skyGradient.addColorStop(1, "#1E90FF"); // Darker blue for horizon
+
+      ctx.fillStyle = skyGradient;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    function drawClouds() {
+      clouds.forEach(cloud => {
+        ctx.drawImage(cloudImage, cloud.x, cloud.y, cloud.width, cloud.height);
+      });
+    }
+
+    function updateClouds() {
+      clouds.forEach((cloud, index) => {
+        cloud.x -= 0.5; // Move clouds to the left
+        if (cloud.x + cloud.width < 0) {
+          clouds.splice(index, 1); // Remove clouds that go off-screen
+        }
+      });
+
+      // Randomly create new clouds
+      if (Math.random() < 0.02) {
+        createCloud();
+      }
+    }
+
+    function drawGround() {
+      ctx.fillStyle = "#228B22";
+      ctx.fillRect(0, ground.y, canvas.width, ground.height);
+    }
+
+    function drawPlayer() {
+      ctx.drawImage(
+        player.images[player.frame],
+        player.x,
+        player.y,
+        player.width,
+        player.height
+      );
+    }
+
+    function drawObstacles() {
+      obstacles.forEach(obs => {
+        // Draw the obstacle image
+        ctx.drawImage(obstacleImage, obs.x, obs.y, obstacleWidth, obstacleHeight);
+      });
+    }
+
+    function drawPlatforms() {
+      platforms.forEach(platform => {
+        // Draw the platform
+        ctx.fillStyle = "#8B4513";
+        ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+
+        // Draw chocolates on the platform
+        platform.chocolates.forEach((chocolate, i) => {
+          if (!platform.chocolatesCollected[i]) {
+            ctx.fillStyle = "gold";
+            ctx.beginPath();
+            ctx.arc(
+              platform.x + platform.width / 2 + chocolate.xOffset,
+              platform.y - 15,
+              8,
+              0,
+              2 * Math.PI
+            );
+            ctx.fill();
+          }
+        });
+      });
+    }
+
+    function updateObstacles() {
+      obstacles.forEach((obs, index) => {
+        // Move the obstacle leftwards by the speed
+        obs.x -= gameState.speed;
+
+        // Collision detection
+        if (player.x + player.width > obs.x && player.x < obs.x + obstacleWidth &&
+            player.y + player.height > obs.y && player.y < obs.y + obstacleHeight) {
+          // If the player touches the obstacle, end the game
+          gameState.running = false;
+          document.getElementById("game-over").style.display = "block";
+        }
+
+        // Remove obstacle if off-screen
+        if (obs.x + obstacleWidth < 0) obstacles.splice(index, 1);
+      });
+    }
+
+    function updatePlatforms() {
+      platforms.forEach(platform => {
+        platform.x -= gameState.speed;
+
+        platform.chocolates.forEach((chocolate, i) => {
+          const chocolateX = platform.x + platform.width / 2 + chocolate.xOffset;
+          const chocolateY = platform.y - 15;
+
+          // Check collision with player
+          if (!platform.chocolatesCollected[i] &&
+            player.x < chocolateX + 10 && player.x + player.width > chocolateX - 10 &&
+            player.y + player.height > chocolateY - 10 && player.y < chocolateY + 10) {
+            platform.chocolatesCollected[i] = true;
+            gameState.chocolateCount++;
+            document.getElementById("chocolate-icon").textContent = `🍫 ${gameState.chocolateCount}`;
+          }
+        });
+
+        // Reset platform and chocolates when off-screen
+        if (platform.x + platform.width < 0) {
+          platform.x = canvas.width + Math.random() * 200;
+          platform.y = 150 + Math.random() * 100;
+          platform.width = 80 + Math.random() * 50;
+          platform.chocolates = generateChocolates(3);
+          platform.chocolatesCollected = [false, false, false];
+        }
+      });
+    }
+
+    function updatePlayer() {
+      player.y += player.velocityY;
+      player.velocityY += gravity;
+
+      if (player.y + player.height > ground.y) {
+        player.y = ground.y - player.height;
+        player.velocityY = 0;
+        player.isJumping = false;
+      }
+
+      platforms.forEach(platform => {
+        if (player.y + player.height <= platform.y && player.y + player.height + player.velocityY >= platform.y &&
+            player.x + player.width > platform.x && player.x < platform.x + platform.width) {
+          player.y = platform.y - player.height;
+          player.velocityY = 0;
+          player.isJumping = false;
+        }
+      });
+    }
+
+    function jump() {
+      if (!player.isJumping) {
+        player.velocityY = -12;
+        player.isJumping = true;
+      }
+    }
+
+    let frameDelay = 0;
+    const frameDelayLimit = 5;
+
+    function update() {
+      if (!gameState.running) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      drawSky();        // Draw the sky background
+      drawClouds();     // Draw clouds
+      drawGround();
+      drawPlatforms();
+      drawObstacles();
+      drawPlayer();
+      updatePlatforms();
+      updatePlayer();
+      updateObstacles();
+      updateClouds();
+
+      if (frameDelay >= frameDelayLimit) {
+        player.frame = (player.frame + 1) % 3;
+        frameDelay = 0;
+      }
+      frameDelay++;
+
+      if (Math.random() < 0.01 && obstacles.length < 5) createObstacle();
+    }
+
+    canvas.addEventListener("click", () => {
+      if (!gameState.running) {
+        gameState.running = true;
+        document.getElementById("game-over").style.display = "none";
+        obstacles.length = 0;
+      }
+      jump();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === " ") jump();
+    });
+
+    setInterval(update, 1000 / 60);
+  </script>
+</body>
+</html>
