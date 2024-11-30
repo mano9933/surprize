@@ -38,16 +38,64 @@
       font-size: 24px;
       color: white;
     }
+    #splash-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom, #1E90FF, #87CEEB);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+
+  #logo {
+    width: 150px;
+    height: auto;
+    margin-bottom: 20px;
+  }
+
+  #game-title {
+    font-size: 2.5em;
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    margin-bottom: 10px;
+  }
+
+  #loading-text {
+    font-size: 1.5em;
+    color: white;
+    animation: blink 1.5s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
   </style>
 </head>
 <body>
   <canvas id="gameCanvas" width="800" height="400"></canvas>
   <div id="game-over">Game Over! <br> Tap to restart.</div>
+  <div id="splash-screen">
+    <img src="logo.png" alt="Game Logo" id="logo" />
+    <h1 id="game-title">Run and Run</h1>
+    <p id="loading-text">Loading...</p>
+  </div>
   <div id="chocolate-icon">🍫 0</div>
 
   <script>
     const canvas = document.getElementById("gameCanvas");
     const ctx = canvas.getContext("2d");
+
+    window.onload = function () {
+    setTimeout(() => {
+      document.getElementById("splash-screen").style.display = "none";
+    }, 3000);
+  };
 
     const gameState = {
       running: true,
@@ -63,6 +111,7 @@
       velocityY: 0,
       isJumping: false,
       frame: 0,
+      name: "Player", // Name of the player
       images: [new Image(), new Image(), new Image()],
     };
 
@@ -83,15 +132,12 @@
     const obstacleWidth = 40;
     const obstacleHeight = 40;
 
-    // Load the obstacle image
     const obstacleImage = new Image();
-    obstacleImage.src = 'obstacle.png'; // Make sure the image is in the same directory or specify the correct path
+    obstacleImage.src = 'obstacle.png'; 
 
-    // Load the cloud image
     const cloudImage = new Image();
-    cloudImage.src = 'clouds.png'; // Ensure this image is available
+    cloudImage.src = 'clouds.png'; 
 
-    // Clouds array
     const clouds = [];
 
     function createPlatform(x, y, width) {
@@ -112,15 +158,26 @@
       }));
     }
 
-    function createObstacle() {
-      const minX = Math.max(
-        ...platforms.map(platform => platform.x + platform.width + 100)
-      );
-      obstacles.push({
-        x: Math.max(canvas.width, minX),
-        y: ground.y - obstacleHeight,
-      });
-    }
+    const minObstacleDistance = 200; // Minimum distance between obstacles
+
+function createObstacle() {
+  // Get the positions of existing obstacles to ensure spacing
+  const minX = Math.max(
+    ...platforms.map(platform => platform.x + platform.width + 100)
+  );
+
+  // Check the x-position of the last obstacle to ensure enough space between obstacles
+  let lastObstacleX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : canvas.width;
+  if (lastObstacleX - minX < minObstacleDistance) {
+    lastObstacleX = minX + minObstacleDistance; // Ensure enough space
+  }
+
+  obstacles.push({
+    x: lastObstacleX,
+    y: ground.y - obstacleHeight,
+  });
+}
+
 
     function createCloud() {
       const cloudWidth = Math.random() * 100 + 50;
@@ -131,10 +188,9 @@
     }
 
     function drawSky() {
-      // Sky gradient
       const skyGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      skyGradient.addColorStop(0, "#87CEEB"); // Light blue for sky
-      skyGradient.addColorStop(1, "#1E90FF"); // Darker blue for horizon
+      skyGradient.addColorStop(0, "#87CEEB"); 
+      skyGradient.addColorStop(1, "#1E90FF"); 
 
       ctx.fillStyle = skyGradient;
       ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -148,13 +204,12 @@
 
     function updateClouds() {
       clouds.forEach((cloud, index) => {
-        cloud.x -= 0.5; // Move clouds to the left
+        cloud.x -= 0.5; 
         if (cloud.x + cloud.width < 0) {
-          clouds.splice(index, 1); // Remove clouds that go off-screen
+          clouds.splice(index, 1); 
         }
       });
 
-      // Randomly create new clouds
       if (Math.random() < 0.02) {
         createCloud();
       }
@@ -175,20 +230,24 @@
       );
     }
 
+    function drawPlayerName() {
+      ctx.font = "15px Arial";
+      ctx.fillStyle = "black";
+      ctx.textAlign = "center";
+      ctx.fillText(player.name, player.x + player.width / 2, player.y - 10);
+    }
+
     function drawObstacles() {
       obstacles.forEach(obs => {
-        // Draw the obstacle image
         ctx.drawImage(obstacleImage, obs.x, obs.y, obstacleWidth, obstacleHeight);
       });
     }
 
     function drawPlatforms() {
       platforms.forEach(platform => {
-        // Draw the platform
         ctx.fillStyle = "#8B4513";
         ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
 
-        // Draw chocolates on the platform
         platform.chocolates.forEach((chocolate, i) => {
           if (!platform.chocolatesCollected[i]) {
             ctx.fillStyle = "gold";
@@ -208,50 +267,50 @@
 
     function updateObstacles() {
       obstacles.forEach((obs, index) => {
-        // Move the obstacle leftwards by the speed
         obs.x -= gameState.speed;
 
-        // Collision detection
         if (player.x + player.width > obs.x && player.x < obs.x + obstacleWidth &&
             player.y + player.height > obs.y && player.y < obs.y + obstacleHeight) {
-          // If the player touches the obstacle, end the game
           gameState.running = false;
           document.getElementById("game-over").style.display = "block";
         }
 
-        // Remove obstacle if off-screen
         if (obs.x + obstacleWidth < 0) obstacles.splice(index, 1);
       });
     }
 
     function updatePlatforms() {
-      platforms.forEach(platform => {
-        platform.x -= gameState.speed;
+  platforms.forEach(platform => {
+    platform.x -= gameState.speed;
 
-        platform.chocolates.forEach((chocolate, i) => {
-          const chocolateX = platform.x + platform.width / 2 + chocolate.xOffset;
-          const chocolateY = platform.y - 15;
+    platform.chocolates.forEach((chocolate, i) => {
+      const chocolateX = platform.x + platform.width / 2 + chocolate.xOffset;
+      const chocolateY = platform.y - 15;
 
-          // Check collision with player
-          if (!platform.chocolatesCollected[i] &&
-            player.x < chocolateX + 10 && player.x + player.width > chocolateX - 10 &&
-            player.y + player.height > chocolateY - 10 && player.y < chocolateY + 10) {
-            platform.chocolatesCollected[i] = true;
-            gameState.chocolateCount++;
-            document.getElementById("chocolate-icon").textContent = `🍫 ${gameState.chocolateCount}`;
-          }
-        });
+      // Check if the player is above the platform and within the bounds to collect chocolate
+      const isAbovePlatform = player.y + player.height <= platform.y && player.y + player.height + player.velocityY >= platform.y;
+      const isOnPlatformHorizontally = player.x + player.width > platform.x && player.x < platform.x + platform.width;
+      
+      // The player can only collect chocolates if they are above and have not passed the platform
+      if (!platform.chocolatesCollected[i] && isAbovePlatform && isOnPlatformHorizontally) {
+        platform.chocolatesCollected[i] = true;
+        gameState.chocolateCount++;
+        document.getElementById("chocolate-icon").textContent = `🍫 ${gameState.chocolateCount}`;
+      }
+    });
 
-        // Reset platform and chocolates when off-screen
-        if (platform.x + platform.width < 0) {
-          platform.x = canvas.width + Math.random() * 200;
-          platform.y = 150 + Math.random() * 100;
-          platform.width = 80 + Math.random() * 50;
-          platform.chocolates = generateChocolates(3);
-          platform.chocolatesCollected = [false, false, false];
-        }
-      });
+    // Reset platform if it moves off screen
+    if (platform.x + platform.width < 0) {
+      platform.x = canvas.width + Math.random() * 200;
+      platform.y = 150 + Math.random() * 100;
+      platform.width = 80 + Math.random() * 50;
+      platform.chocolates = generateChocolates(3);
+      platform.chocolatesCollected = [false, false, false];
     }
+  });
+}
+
+
 
     function updatePlayer() {
       player.y += player.velocityY;
@@ -275,7 +334,7 @@
 
     function jump() {
       if (!player.isJumping) {
-        player.velocityY = -12;
+        player.velocityY = -14;
         player.isJumping = true;
       }
     }
@@ -288,12 +347,13 @@
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      drawSky();        // Draw the sky background
-      drawClouds();     // Draw clouds
+      drawSky();
+      drawClouds();
       drawGround();
       drawPlatforms();
       drawObstacles();
       drawPlayer();
+      drawPlayerName(); // Draw player name above character
       updatePlatforms();
       updatePlayer();
       updateObstacles();
@@ -308,20 +368,55 @@
       if (Math.random() < 0.01 && obstacles.length < 5) createObstacle();
     }
 
-    canvas.addEventListener("click", () => {
-      if (!gameState.running) {
-        gameState.running = true;
-        document.getElementById("game-over").style.display = "none";
-        obstacles.length = 0;
-      }
-      jump();
-    });
+    // Reset game state function
+function resetGame() {
+  // Reset the game state
+  gameState.running = true;
+  gameState.chocolateCount = 0;
+  document.getElementById("chocolate-icon").textContent = `🍫 0`;
+  
+  // Reset player state
+  player.x = 50;
+  player.y = 300;
+  player.velocityY = 0;
+  player.isJumping = false;
+  player.frame = 0;
+  
+  // Clear existing obstacles and clouds
+  obstacles.length = 0;
+  clouds.length = 0;
+  
+  // Reset platforms
+  platforms.forEach(platform => {
+    platform.x = Math.random() * 200;
+    platform.y = 150 + Math.random() * 100;
+    platform.width = 80 + Math.random() * 50;
+    platform.chocolates = generateChocolates(3);
+    platform.chocolatesCollected = [false, false, false];
+  });
 
-    document.addEventListener("keydown", (e) => {
-      if (e.key === " ") jump();
-    });
+  // Hide the game-over screen
+  document.getElementById("game-over").style.display = "none";
+  
+  // Optionally, create a new set of obstacles
+  for (let i = 0; i < 3; i++) {
+    createObstacle();
+  }
+}
+
+// Handle game over and restart
+canvas.addEventListener("click", () => {
+  if (!gameState.running) {
+    resetGame(); // Reset the game when canvas is clicked after Game Over
+  } else {
+    jump(); // If the game is still running, just jump
+  }
+});
+
 
     setInterval(update, 1000 / 60);
+    document.addEventListener("keydown", e => { if (e.code === "Space") jump(); });
+    canvas.addEventListener("click", jump);
   </script>
 </body>
 </html>
